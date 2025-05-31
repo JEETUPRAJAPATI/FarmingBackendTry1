@@ -22,8 +22,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     message: 'Harvest Direct Backend is running!',
     timestamp: new Date().toISOString()
   });

@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
-import { users, orders, payments } from '@shared/schema';
+import { users, orders, payments } from '../shared/schema';
 import { eq, like, desc, asc, count, and, gte, lte, sql, isNull, isNotNull } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 
 // GET all users with pagination, sorting and filtering
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const { 
-      page = '1', 
-      limit = '10', 
-      sort = 'id', 
+    const {
+      page = '1',
+      limit = '10',
+      sort = 'id',
       order = 'asc',
       search = '',
       role = '',
@@ -53,7 +53,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
     // Count total records for pagination
     const totalQuery = db.select({ count: sql<number>`count(*)` }).from(users);
-    
+
     // Apply the same filters to the count query
     if (search) {
       totalQuery.where(like(users.name, `%${search}%`));
@@ -66,7 +66,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     } else if (status === 'unverified') {
       totalQuery.where(eq(users.emailVerified, false));
     }
-    
+
     const [countResult] = await totalQuery;
     const count = countResult?.count || 0;
 
@@ -85,7 +85,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
     // Fetch additional user stats
     const userIds = usersList.map(user => user.id);
-    
+
     // Get order counts for each user
     const orderCounts = await Promise.all(
       userIds.map(async (userId) => {
@@ -96,7 +96,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         return { userId, count: result?.count || 0 };
       })
     );
-    
+
     // Get payment totals for each user
     const paymentTotals = await Promise.all(
       userIds.map(async (userId) => {
@@ -104,17 +104,17 @@ export const getAllUsers = async (req: Request, res: Response) => {
           .select({ amount: payments.amount })
           .from(payments)
           .where(eq(payments.userId, userId));
-        
+
         const total = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
         return { userId, total };
       })
     );
-    
+
     // Combine user data with stats
     const usersWithStats = usersList.map(user => {
       const orderCount = orderCounts.find(o => o.userId === user.id)?.count || 0;
       const totalSpent = paymentTotals.find(p => p.userId === user.id)?.total || 0;
-      
+
       return {
         ...user,
         orders: orderCount,
@@ -142,7 +142,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     // Get user details (excluding password)
     const [userData] = await db
       .select({
@@ -179,12 +179,12 @@ export const getUserById = async (req: Request, res: Response) => {
       .select({ count: sql<number>`count(*)` })
       .from(orders)
       .where(eq(orders.userId, parseInt(id)));
-    
+
     const userPayments = await db
       .select({ amount: payments.amount })
       .from(payments)
       .where(eq(payments.userId, parseInt(id)));
-    
+
     const totalSpent = userPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
 
     // Return user with activity data
@@ -206,25 +206,25 @@ export const getUserById = async (req: Request, res: Response) => {
 export const createUser = async (req: Request, res: Response) => {
   try {
     const { name, email, password, role = 'user' } = req.body;
-    
+
     // Validate input
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email and password are required' });
     }
-    
+
     // Check if email already exists
     const [existingUser] = await db
       .select()
       .from(users)
       .where(eq(users.email, email));
-    
+
     if (existingUser) {
       return res.status(400).json({ message: 'Email already in use' });
     }
-    
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // Create user
     const [newUser] = await db
       .insert(users)
@@ -261,39 +261,39 @@ export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, email, role, emailVerified } = req.body;
-    
+
     // Check if user exists
     const [existingUser] = await db
       .select()
       .from(users)
       .where(eq(users.id, parseInt(id)));
-    
+
     if (!existingUser) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     // Prepare update data
     const updateData: any = {
       updatedAt: new Date()
     };
-    
+
     if (name) updateData.name = name;
     if (email) updateData.email = email;
     if (role) updateData.role = role;
     if (emailVerified !== undefined) updateData.emailVerified = emailVerified;
-    
+
     // If updating email, check it's not already in use
     if (email && email !== existingUser.email) {
       const [emailExists] = await db
         .select()
         .from(users)
         .where(eq(users.email, email));
-      
+
       if (emailExists) {
         return res.status(400).json({ message: 'Email already in use by another user' });
       }
     }
-    
+
     // Update user
     const [updatedUser] = await db
       .update(users)
@@ -323,24 +323,24 @@ export const changeUserPassword = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { password } = req.body;
-    
+
     if (!password || password.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters long' });
     }
-    
+
     // Check if user exists
     const [existingUser] = await db
       .select()
       .from(users)
       .where(eq(users.id, parseInt(id)));
-    
+
     if (!existingUser) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     // Hash new password
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // Update password
     await db
       .update(users)
@@ -363,29 +363,29 @@ export const changeUserPassword = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     // Check if user exists
     const [existingUser] = await db
       .select()
       .from(users)
       .where(eq(users.id, parseInt(id)));
-    
+
     if (!existingUser) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     // Don't allow deleting the last admin
     if (existingUser.role === 'admin') {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })
         .from(users)
         .where(eq(users.role, 'admin'));
-      
+
       if (count <= 1) {
         return res.status(400).json({ message: 'Cannot delete the last admin user' });
       }
     }
-    
+
     // Delete user
     const [deletedUser] = await db
       .delete(users)
@@ -413,28 +413,28 @@ export const getUserStatisticsData = async (): Promise<any> => {
     const [{ count: totalUsers }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(users);
-    
+
     // Count verified users
     const [{ count: verifiedUsers }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(users)
       .where(eq(users.emailVerified, true));
-    
+
     // Count admin users
     const [{ count: adminUsers }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(users)
       .where(eq(users.role, 'admin'));
-    
+
     // Count recent users (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const [{ count: recentUsers }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(users)
       .where(gte(users.createdAt, thirtyDaysAgo));
-    
+
     return {
       totalUsers,
       verifiedUsers,

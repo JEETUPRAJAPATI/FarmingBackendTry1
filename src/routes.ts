@@ -7,14 +7,14 @@ import jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
 import Razorpay from 'razorpay';
-import { 
+import {
   insertNewsletterSubscriptionSchema,
   insertUserSchema,
   insertPaymentSchema,
   insertSubscriptionSchema,
   insertProductReviewSchema,
   insertContactMessageSchema
-} from "@shared/schema";
+} from "./shared/schema.ts";
 import adminRouter from './admin';
 
 // JWT Secret
@@ -37,7 +37,7 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
 
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-    
+
     const user = await storage.getUserById(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: 'Invalid user' });
@@ -57,12 +57,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get session ID middleware
   const getSessionId = (req: Request, res: Response, next: Function) => {
     let sessionId = req.headers['x-session-id'] as string;
-    
+
     if (!sessionId) {
       sessionId = uuidv4();
       res.setHeader('X-Session-Id', sessionId);
     }
-    
+
     (req as any).sessionId = sessionId;
     next();
   };
@@ -71,8 +71,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Health check endpoint for deployment monitoring
   app.get(`${apiPrefix}/health`, (req, res) => {
-    res.json({ 
-      status: 'OK', 
+    res.json({
+      status: 'OK',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development'
     });
@@ -119,12 +119,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid product ID" });
       }
-      
+
       const product = await storage.getProductById(id);
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
-      
+
       res.json(product);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch product" });
@@ -158,18 +158,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid farmer ID" });
       }
-      
+
       const farmer = await storage.getFarmerById(id);
       if (!farmer) {
         return res.status(404).json({ message: "Farmer not found" });
       }
-      
+
       res.json(farmer);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch farmer" });
     }
   });
-  
+
   // Product reviews endpoints
   app.get(`${apiPrefix}/products/:id/reviews`, async (req, res) => {
     try {
@@ -177,26 +177,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(productId)) {
         return res.status(400).json({ message: "Invalid product ID" });
       }
-      
+
       const reviews = await storage.getProductReviews(productId);
       res.json(reviews);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch product reviews" });
     }
   });
-  
+
   app.post(`${apiPrefix}/products/:id/reviews`, async (req, res) => {
     try {
       const productId = parseInt(req.params.id);
       if (isNaN(productId)) {
         return res.status(400).json({ message: "Invalid product ID" });
       }
-      
+
       const reviewData = {
         ...req.body,
         productId
       };
-      
+
       const newReview = await storage.addProductReview(reviewData);
       res.status(201).json(newReview);
     } catch (error) {
@@ -220,11 +220,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { productId, quantity } = req.body;
       const sessionId = (req as any).sessionId;
-      
+
       if (typeof productId !== 'number' || typeof quantity !== 'number' || quantity <= 0) {
         return res.status(400).json({ message: "Invalid product ID or quantity" });
       }
-      
+
       const cart = await storage.addToCart(sessionId, productId, quantity);
       res.json(cart);
     } catch (error) {
@@ -238,11 +238,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const productId = parseInt(req.params.productId);
       const { quantity } = req.body;
       const sessionId = (req as any).sessionId;
-      
+
       if (isNaN(productId) || typeof quantity !== 'number') {
         return res.status(400).json({ message: "Invalid product ID or quantity" });
       }
-      
+
       const cart = await storage.updateCartItem(sessionId, productId, quantity);
       res.json(cart);
     } catch (error) {
@@ -255,11 +255,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const productId = parseInt(req.params.productId);
       const sessionId = (req as any).sessionId;
-      
+
       if (isNaN(productId)) {
         return res.status(400).json({ message: "Invalid product ID" });
       }
-      
+
       const cart = await storage.removeFromCart(sessionId, productId);
       res.json(cart);
     } catch (error) {
@@ -293,27 +293,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User Authentication Routes
-  
+
   // Register a new user
   app.post(`${apiPrefix}/auth/register`, async (req, res) => {
     try {
       // Validate user data
       const userData = insertUserSchema.parse(req.body);
-      
+
       // Hash the password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(userData.password, salt);
-      
+
       // Create user with hashed password and mark as already verified
       const user = await storage.createUser({
         ...userData,
         password: hashedPassword,
         emailVerified: true
       });
-      
+
       // Return success message without exposing password
       const { password, ...userWithoutPassword } = user;
-      res.status(201).json({ 
+      res.status(201).json({
         message: "Registration successful. You can now log in.",
         user: userWithoutPassword
       });
@@ -325,13 +325,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   });
-  
+
   // Verify email
   app.get(`${apiPrefix}/auth/verify/:token`, async (req, res) => {
     try {
       const { token } = req.params;
       const success = await storage.verifyUserEmail(token);
-      
+
       if (success) {
         res.json({ message: "Email verified successfully" });
       } else {
@@ -341,22 +341,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to verify email" });
     }
   });
-  
+
   // Login
   app.post(`${apiPrefix}/auth/login`, async (req, res) => {
     try {
       const { email, password } = req.body;
       console.log(`Login attempt for email: ${email}`);
-      
+
       // Check if user exists
       const user = await storage.getUserByEmail(email);
       if (!user) {
         console.log('User not found in database');
         return res.status(400).json({ message: "Invalid email or password" });
       }
-      
+
       console.log('User found, verifying password');
-      
+
       try {
         // Verify password
         const validPassword = await bcrypt.compare(password, user.password);
@@ -364,16 +364,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('Password verification failed');
           return res.status(400).json({ message: "Invalid email or password" });
         }
-        
+
         console.log('Password verified, generating token');
-        
+
         // Generate JWT token
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-        
+
         // Return token and user data without password
         const { password: _, ...userWithoutPassword } = user;
         console.log('Login successful');
-        
+
         return res.json({
           message: "Login successful",
           token,
@@ -388,17 +388,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Login failed" });
     }
   });
-  
+
   // Request password reset
   app.post(`${apiPrefix}/auth/reset-request`, async (req, res) => {
     try {
       const { email } = req.body;
       const success = await storage.resetPasswordRequest(email);
-      
+
       if (success && transporter) {
         const user = await storage.getUserByEmail(email);
         const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${user?.resetToken}`;
-        
+
         await transporter.sendMail({
           from: 'noreply@yourstore.com',
           to: email,
@@ -406,26 +406,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           html: `<p>Please click <a href="${resetUrl}">here</a> to reset your password.</p>`
         });
       }
-      
+
       // Always return success to prevent email enumeration
       res.json({ message: "If your email is registered, you will receive a password reset link" });
     } catch (error) {
       res.status(500).json({ message: "Failed to process password reset request" });
     }
   });
-  
+
   // Reset password
   app.post(`${apiPrefix}/auth/reset-password/:token`, async (req, res) => {
     try {
       const { token } = req.params;
       const { newPassword } = req.body;
-      
+
       // Hash the new password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(newPassword, salt);
-      
+
       const success = await storage.resetPassword(token, hashedPassword);
-      
+
       if (success) {
         res.json({ message: "Password reset successful" });
       } else {
@@ -435,41 +435,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to reset password" });
     }
   });
-  
+
   // User Profile Routes (protected)
-  
+
   // Get user profile
   app.get(`${apiPrefix}/user/profile`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
       const { password, ...userWithoutPassword } = user;
-      
+
       res.json({ user: userWithoutPassword });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch user profile" });
     }
   });
-  
+
   // Update user profile
   app.put(`${apiPrefix}/user/profile`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
       const { name } = req.body;
-      
+
       const updatedUser = await storage.updateUser(user.id, { name });
       const { password, ...userWithoutPassword } = updatedUser;
-      
-      res.json({ 
-        message: "Profile updated successfully", 
-        user: userWithoutPassword 
+
+      res.json({
+        message: "Profile updated successfully",
+        user: userWithoutPassword
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to update profile" });
     }
   });
-  
+
   // Payment Routes
-  
+
   // Initialize Razorpay
   app.post(`${apiPrefix}/payments/initialize`, authenticate, async (req, res) => {
     try {
@@ -478,11 +478,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Initialize Razorpay with API keys
         const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
         const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
-        
+
         if (!razorpayKeyId || !razorpayKeySecret) {
           return res.status(500).json({ message: "Razorpay API keys not configured" });
         }
-        
+
         try {
           razorpay = new Razorpay({
             key_id: razorpayKeyId,
@@ -494,14 +494,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ message: "Failed to initialize payment gateway", error: String(initError) });
         }
       }
-      
+
       const user = (req as any).user;
       const { amount, currency = 'INR' } = req.body;
-      
+
       if (!amount || isNaN(amount) || amount <= 0) {
         return res.status(400).json({ message: "Invalid amount specified", error: "Amount must be a positive number" });
       }
-      
+
       // Create Razorpay order
       const options = {
         amount: Math.round(amount * 100), // Razorpay expects amount in smallest currency unit (paise)
@@ -509,13 +509,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         receipt: `receipt_order_${Date.now()}`,
         payment_capture: 1
       };
-      
+
       console.log("Creating Razorpay order with options:", options);
-      
+
       try {
         const order = await razorpay.orders.create(options);
         console.log("Razorpay order created:", order);
-        
+
         res.json({
           orderId: order.id,
           amount: order.amount,
@@ -531,30 +531,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to initialize payment", error: error instanceof Error ? error.message : String(error) });
     }
   });
-  
+
   // Verify payment
   app.post(`${apiPrefix}/payments/verify`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
-      const { 
-        razorpayPaymentId, 
-        razorpayOrderId, 
+      const {
+        razorpayPaymentId,
+        razorpayOrderId,
         razorpaySignature,
         amount,
         currency = 'INR'
       } = req.body;
-      
+
       // Verify the payment signature
       const body = razorpayOrderId + "|" + razorpayPaymentId;
       const expectedSignature = crypto
         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || '')
         .update(body)
         .digest("hex");
-      
+
       if (expectedSignature !== razorpaySignature) {
         return res.status(400).json({ message: "Invalid payment signature" });
       }
-      
+
       // Record the payment
       const payment = await storage.createPayment({
         userId: user.id,
@@ -563,30 +563,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currency,
         status: 'completed'
       });
-      
-      res.json({ 
-        message: "Payment successful", 
-        payment 
+
+      res.json({
+        message: "Payment successful",
+        payment
       });
     } catch (error) {
       res.status(500).json({ message: "Payment verification failed" });
     }
   });
-  
+
   // Get payment history
   app.get(`${apiPrefix}/payments/history`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
       const payments = await storage.getPaymentsByUserId(user.id);
-      
+
       res.json({ payments });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch payment history" });
     }
   });
-  
+
   // Subscription Routes
-  
+
   // Create subscription
   app.post(`${apiPrefix}/subscriptions/create`, authenticate, async (req, res) => {
     try {
@@ -595,20 +595,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Initialize Razorpay with API keys
         const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
         const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
-        
+
         if (!razorpayKeyId || !razorpayKeySecret) {
           return res.status(500).json({ message: "Razorpay API keys not configured" });
         }
-        
+
         razorpay = new Razorpay({
           key_id: razorpayKeyId,
           key_secret: razorpayKeySecret
         });
       }
-      
+
       const user = (req as any).user;
       const { planId, planName, intervalInMonths = 1 } = req.body;
-      
+
       // Create Razorpay subscription
       const subscription = await razorpay.subscriptions.create({
         plan_id: planId,
@@ -616,12 +616,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         total_count: 12, // 12 billing cycles
         quantity: 1
       });
-      
+
       // Calculate end date based on interval
       const startDate = new Date();
       const endDate = new Date();
       endDate.setMonth(endDate.getMonth() + intervalInMonths * 12); // 12 billing cycles
-      
+
       // Record subscription in our database
       const createdSubscription = await storage.createSubscription({
         userId: user.id,
@@ -631,7 +631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate,
         endDate
       });
-      
+
       res.json({
         message: "Subscription created successfully",
         subscription: createdSubscription,
@@ -641,19 +641,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create subscription" });
     }
   });
-  
+
   // Get user subscriptions
   app.get(`${apiPrefix}/subscriptions`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
       const subscriptions = await storage.getSubscriptionsByUserId(user.id);
-      
+
       res.json({ subscriptions });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch subscriptions" });
     }
   });
-  
+
   // Get all user orders
   app.get(`${apiPrefix}/orders/history`, authenticate, async (req, res) => {
     try {
@@ -694,13 +694,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ]
         }
       ];
-      
+
       res.json({ orders: sampleOrders });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch order history" });
     }
   });
-  
+
   // Get cancelled orders
   app.get(`${apiPrefix}/orders/cancelled`, authenticate, async (req, res) => {
     try {
@@ -731,13 +731,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ]
         }
       ];
-      
+
       res.json({ orders: cancelledOrders });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch cancelled orders" });
     }
   });
-  
+
   // Get delivered orders
   app.get(`${apiPrefix}/orders/delivered`, authenticate, async (req, res) => {
     try {
@@ -783,33 +783,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ]
         }
       ];
-      
+
       res.json({ orders: deliveredOrders });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch delivered orders" });
     }
   });
-  
+
   // Cancel subscription
   app.post(`${apiPrefix}/subscriptions/:id/cancel`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
       const subscriptionId = parseInt(req.params.id);
-      
+
       // Verify ownership
       const subscription = await storage.getSubscriptionById(subscriptionId);
       if (!subscription || subscription.userId !== user.id) {
         return res.status(403).json({ message: "Unauthorized access to subscription" });
       }
-      
+
       // Cancel in Razorpay
       if (razorpay) {
         await razorpay.subscriptions.cancel(subscription.razorpaySubscriptionId);
       }
-      
+
       // Update status in our database
       const updatedSubscription = await storage.updateSubscriptionStatus(subscriptionId, 'canceled');
-      
+
       res.json({
         message: "Subscription canceled successfully",
         subscription: updatedSubscription
@@ -830,92 +830,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch product reviews" });
     }
   });
-  
+
   // Check if user can review a product (has purchased and received it)
   app.get(`${apiPrefix}/products/:id/can-review`, authenticate, async (req, res) => {
     try {
       const productId = parseInt(req.params.id);
       const userId = (req as any).user.id;
-      
+
       const canReview = await storage.canUserReviewProduct(userId, productId);
       res.json(canReview);
     } catch (error) {
       res.status(500).json({ message: "Failed to check review eligibility" });
     }
   });
-  
+
   // Add product review
   app.post(`${apiPrefix}/products/:id/reviews`, async (req, res) => {
     try {
       const productId = parseInt(req.params.id);
       const reviewData = req.body;
-      
+
       // Validate the review data
       const validatedData = insertProductReviewSchema.parse({
         ...reviewData,
         productId
       });
-      
+
       const newReview = await storage.addProductReview(validatedData);
       res.status(201).json(newReview);
     } catch (error) {
       res.status(500).json({ message: "Failed to add product review" });
     }
   });
-  
+
   // Contact Form Handling
   // Submit contact form
   app.post(`${apiPrefix}/contact`, async (req, res) => {
     try {
       const contactData = req.body;
-      
+
       // Validate the contact form data
       const validatedData = insertContactMessageSchema.parse(contactData);
-      
+
       const newContactMessage = await storage.addContactMessage(validatedData);
-      res.status(201).json({ 
-        message: "Contact message submitted successfully", 
-        id: newContactMessage.id 
+      res.status(201).json({
+        message: "Contact message submitted successfully",
+        id: newContactMessage.id
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to submit contact message" });
     }
   });
-  
+
   // Admin routes for managing contact messages (protected)
   app.get(`${apiPrefix}/admin/contact-messages`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
-      
+
       // Only allow admins to access this endpoint
       if (user.role !== 'admin') {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const messages = await storage.getAllContactMessages();
       res.json(messages);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch contact messages" });
     }
   });
-  
+
   // Update contact message status (mark as read, in progress, resolved, etc.)
   app.patch(`${apiPrefix}/admin/contact-messages/:id`, authenticate, async (req, res) => {
     try {
       const user = (req as any).user;
-      
+
       // Only allow admins to access this endpoint
       if (user.role !== 'admin') {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const messageId = parseInt(req.params.id);
       const { status } = req.body;
-      
+
       if (!status || typeof status !== 'string') {
         return res.status(400).json({ message: "Status is required" });
       }
-      
+
       const updatedMessage = await storage.updateContactMessageStatus(messageId, status);
       res.json(updatedMessage);
     } catch (error) {

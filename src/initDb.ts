@@ -1,5 +1,5 @@
 import { db } from './db';
-import { products, farmers, testimonials } from '@shared/schema';
+import { products, farmers, testimonials } from './shared/schema';
 import { productData } from './productData';
 import { farmerData } from './farmerData';
 import { sql } from 'drizzle-orm';
@@ -9,31 +9,31 @@ import { sql } from 'drizzle-orm';
  */
 export async function initializeDatabase() {
   console.log('Initializing database with seed data...');
-  
+
   try {
     // Check if products already exist
     const existingProducts = await db.select({ count: sql`count(*)` }).from(products);
-    
+
     if (Number(existingProducts[0].count) === 0) {
       console.log('Adding products...');
       await db.insert(products).values(productData);
     } else {
       console.log(`Found ${existingProducts[0].count} existing products, skipping product seeding.`);
     }
-    
+
     // Check if farmers already exist
     const existingFarmers = await db.select({ count: sql`count(*)` }).from(farmers);
-    
+
     if (Number(existingFarmers[0].count) === 0) {
       console.log('Adding farmers...');
       await db.insert(farmers).values(farmerData);
     } else {
       console.log(`Found ${existingFarmers[0].count} existing farmers, skipping farmer seeding.`);
     }
-    
+
     // Add testimonials if they don't exist
     const existingTestimonials = await db.select({ count: sql`count(*)` }).from(testimonials);
-    
+
     if (Number(existingTestimonials[0].count) === 0) {
       console.log('Adding testimonials...');
       const testimonialsData = [
@@ -70,14 +70,14 @@ export async function initializeDatabase() {
           imageInitials: "DP"
         }
       ];
-      
+
       await db.insert(testimonials).values(testimonialsData);
     } else {
       console.log(`Found ${existingTestimonials[0].count} existing testimonials, skipping testimonial seeding.`);
     }
-    
+
     console.log('Database initialization completed successfully!');
-    
+
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;

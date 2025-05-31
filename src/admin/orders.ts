@@ -1,22 +1,22 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
-import { 
-  orders, 
-  orderItems, 
-  products, 
+import {
+  orders,
+  orderItems,
+  products,
   users,
   Order,
   OrderItem
-} from '@shared/schema';
+} from '../shared/schema.js';
 import { eq, like, desc, asc, and, gte, lte, sql } from 'drizzle-orm';
 
 // GET all orders with pagination, sorting and filtering
 export const getAllOrders = async (req: Request, res: Response) => {
   try {
-    const { 
-      page = '1', 
-      limit = '10', 
-      sort = 'id', 
+    const {
+      page = '1',
+      limit = '10',
+      sort = 'id',
       order = 'asc',
       search = '',
       status = '',
@@ -74,7 +74,7 @@ export const getAllOrders = async (req: Request, res: Response) => {
 
     // Count total records for pagination
     const totalQuery = db.select({ count: sql<number>`count(*)` }).from(orders);
-    
+
     // Apply the same filters to the count query
     if (search) {
       totalQuery.leftJoin(users, eq(orders.userId, users.id))
@@ -95,7 +95,7 @@ export const getAllOrders = async (req: Request, res: Response) => {
     } else if (endDate) {
       totalQuery.where(lte(orders.createdAt, new Date(endDate)));
     }
-    
+
     const [countResult] = await totalQuery;
     const count = countResult?.count || 0;
 
@@ -140,7 +140,7 @@ export const getAllOrders = async (req: Request, res: Response) => {
 export const getOrderById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     // Get order details
     const [orderData] = await db.select({
       id: orders.id,
@@ -195,25 +195,25 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, cancellationReason } = req.body;
-    
+
     // Validate status
     const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid order status' });
     }
-    
+
     // Prepare update data
     const updateData: Partial<Order> = { status };
-    
+
     // Add additional fields based on status
     if (status === 'cancelled' && cancellationReason) {
       updateData.cancellationReason = cancellationReason;
     }
-    
+
     if (status === 'delivered') {
       updateData.deliveredAt = new Date();
     }
-    
+
     // Update order in database
     const [updatedOrder] = await db
       .update(orders)
@@ -239,18 +239,18 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 export const deleteOrder = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     // Start a transaction to delete order items first, then the order
     const deletedOrder = await db.transaction(async (tx) => {
       // Delete order items
       await tx.delete(orderItems).where(eq(orderItems.orderId, parseInt(id)));
-      
+
       // Delete the order and return it
       const [deletedOrder] = await tx
         .delete(orders)
         .where(eq(orders.id, parseInt(id)))
         .returning();
-        
+
       return deletedOrder;
     });
 
@@ -273,7 +273,7 @@ export const getOrderStatisticsData = async (): Promise<any> => {
   try {
     // Get counts by status
     const allOrders = await db.select().from(orders);
-    
+
     // Calculate statistics
     const totalOrders = allOrders.length;
     const pendingOrders = allOrders.filter(o => o.status === 'pending').length;
@@ -281,18 +281,18 @@ export const getOrderStatisticsData = async (): Promise<any> => {
     const shippedOrders = allOrders.filter(o => o.status === 'shipped').length;
     const deliveredOrders = allOrders.filter(o => o.status === 'delivered').length;
     const cancelledOrders = allOrders.filter(o => o.status === 'cancelled').length;
-    
+
     // Calculate total revenue
     const totalRevenue = allOrders
       .filter(o => o.status !== 'cancelled')
       .reduce((sum, order) => sum + Number(order.total), 0);
-    
+
     // Get recent orders (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const recentOrders = allOrders.filter(o => new Date(o.createdAt) >= thirtyDaysAgo).length;
-    
+
     return {
       totalOrders,
       pendingOrders,

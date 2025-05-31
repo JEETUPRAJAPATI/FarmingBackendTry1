@@ -3,7 +3,7 @@ import * as productController from './products';
 import * as orderController from './orders';
 import * as userController from './users';
 import * as farmerController from './farmers';
-import { users } from '@shared/schema';
+import { users } from '../shared/schema';
 import { db } from '../db';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
@@ -20,25 +20,25 @@ const authenticateAdmin = async (req: Request, res: Response, next: NextFunction
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ message: 'Authentication required' });
     }
-    
+
     const token = authHeader.split(' ')[1];
-    
+
     // Verify token
     const decodedToken = jwt.verify(token, process.env.JWT_SECRET || 'secret-key') as { userId: number };
-    
+
     // Check if user exists and is an admin
     const [user] = await db
       .select()
       .from(users)
       .where(eq(users.id, decodedToken.userId));
-    
+
     if (!user || user.role !== 'admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
-    
+
     // Add user to request object
     (req as any).user = user;
-    
+
     next();
   } catch (error) {
     console.error('Admin authentication error:', error);
@@ -50,31 +50,31 @@ const authenticateAdmin = async (req: Request, res: Response, next: NextFunction
 adminRouter.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    
+
     // Find user by email
     const [user] = await db
       .select()
       .from(users)
       .where(eq(users.email, email));
-    
+
     // Check if user exists and is an admin
     if (!user || user.role !== 'admin') {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-    
+
     // Validate password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-    
+
     // Generate token
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET || 'secret-key',
       { expiresIn: '24h' }
     );
-    
+
     // Return user info and token
     res.json({
       message: 'Login successful',
@@ -97,16 +97,16 @@ adminRouter.get('/dashboard', authenticateAdmin, async (req: Request, res: Respo
   try {
     // Create a modified request object to pass to the controllers
     const dashboardReq = { ...req, isDashboard: true };
-    
+
     // Get user statistics without sending response
     const userStats = await userController.getUserStatisticsData();
-    
+
     // Get order statistics without sending response
     const orderStats = await orderController.getOrderStatisticsData();
-    
+
     // Get product stock statistics without sending response
     const productStats = await productController.getProductStockData();
-    
+
     // Combine all stats into a single response
     res.json({
       users: userStats,

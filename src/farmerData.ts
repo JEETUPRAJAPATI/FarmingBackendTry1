@@ -1,4 +1,4 @@
-import { Farmer } from '@shared/schema';
+import { Farmer } from './shared/schema';
 
 export const farmerData: Farmer[] = [
   {
