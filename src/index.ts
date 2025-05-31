@@ -11,7 +11,7 @@ app.use(cors({
   origin: [
     'http://localhost:5173', // Vite dev server
     'http://localhost:3000', // React dev server
-    'https://your-frontend-domain.vercel.app', // Production frontend
+    'https://farm-fresh-new-fronted.vercel.app', // Production frontend
   ],
   credentials: true
 }));
