@@ -40,10 +40,17 @@
     "@types/nodemailer": "^6.4.17",
     "@types/ws": "^8.5.13",
     "drizzle-kit": "^0.30.4",
+    "esbuild-plugin-tsconfig-paths": "^1.0.1",
     "tsx": "^4.19.1",
     "typescript": "5.6.3"
   },
-  "keywords": ["ecommerce", "api", "nodejs", "express", "postgresql"],
+  "keywords": [
+    "ecommerce",
+    "api",
+    "nodejs",
+    "express",
+    "postgresql"
+  ],
   "author": "Your Name",
   "license": "MIT"
 }
